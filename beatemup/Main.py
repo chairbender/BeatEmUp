@@ -11,6 +11,8 @@ import pygame
 from beatemup.actors import *
 from pygame.locals import *
 
+"""TODO: Implement punchen"""
+
 class BeatEmUpMain:
     """The Main PyMan Class - This class handles the main 
     initialization and creating of the Game."""
@@ -65,11 +67,7 @@ class BeatEmUpMain:
                 if event.type == pygame.QUIT: 
                     sys.exit()
                 elif event.type == KEYDOWN or event.type == KEYUP:
-                    if ((event.key == K_RIGHT)
-                    or (event.key == K_LEFT)
-                    or (event.key == K_UP)
-                    or (event.key == K_DOWN)):
-                        self.hero.move(event.type, event.key)
+                    self.hero.move(event.type, event.key)
                         
             #Let AI actors move
             
