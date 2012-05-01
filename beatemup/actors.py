@@ -36,7 +36,65 @@ class Animation:
     
     def __len__(self):
         return len(self.sprite_frames)
-
+    
+class HealthBar(pygame.sprite.Sprite):
+    """
+    Represents a bar that is given a min, max and current value
+    and is drawn based on that
+    """
+    
+    name_font = None
+    
+    def __init__(self,left,top,min_value,max_value,cur_value,width,height,font_name="Health"):
+        pygame.sprite.Sprite.__init__(self) 
+        
+        #Initialize static
+        if HealthBar.name_font == None:
+            name = os.path.join('..\\','fonts')
+            name = os.path.join(name,'shooting_dutchy.ttf')
+            HealthBar.name_font = pygame.font.Font(name, 12)
+        
+        self.min_value = min_value
+        self.max_value = max_value
+        self.cur_value = cur_value
+        self.width = width
+        self.height = height
+        self.name = font_name
+        
+        #Position in global coordinates
+        self.rect = Rect(left,top,width,height)
+        
+        self.p_updateImage()
+        
+    def p_updateImage(self):
+        """
+        Update the image of the healthbar
+        """
+        newImage = pygame.Surface((self.width,self.height*2))
+        
+        #Draw the border
+        pygame.draw.rect(newImage, pygame.Color(235,227,12), \
+            Rect(0,0,self.width,self.height))
+        
+        #Draw the health part
+        pygame.draw.rect(newImage,pygame.Color(255,23,23), \
+                         Rect(4,4,(self.width-8)*(float(self.cur_value)/self.max_value),self.height-8))
+        
+        #Draw the text
+        text = HealthBar.name_font.render(self.name, 1, pygame.Color(127, 10, 10), pygame.Color(255,255,255))
+        newImage.blit(text,Rect(0,self.height,1,1))
+        
+        #Update the image
+        newImage.set_colorkey((0,0,0))
+        self.image = newImage
+    
+    def setValue(self,new_value):
+        """
+        CHanges the value and updates the sprite image
+        """
+        self.cur_value = new_value
+        self.p_updateImage()
+            
 class Mover(pygame.sprite.Sprite):
     """Class for a sprite that moves and animates
     Subclasses can call moveUpdate to set the image
@@ -115,6 +173,11 @@ class Fighter(Mover):
     """
     Base class for a sprite that moves, punches and gets hit
     """
+    
+    #Default health for a fighter
+    DEFAULT_HEALTH = 100
+    DEFAULT_DAMAGE = 5
+    
     #States
     IDLE_OR_MOVING,PUNCHING,GETTING_HIT = range(3)
     
@@ -127,10 +190,32 @@ class Fighter(Mover):
         
         #Our saved state
         #Whether we are in the middle of a one time animation like getting hit or punching
-        self.curState = Fighter.IDLE_OR_MOVING
+        self.curState = Fighter.IDLE_OR_MOVING        
+                
+        #Track health
+        self.health = Fighter.DEFAULT_HEALTH  
+
+    def getHealth(self):
+        return self.health
+    
+    def takeHit(self,fighter_attacker):
+        """
+        Reduce health as if fighter_attacker hit
+        this fighter
+        """
+        self.health -= fighter_attacker.getDamage()
+        
+    def getDamage(self):
+        """
+        Amount of damage done when this fighter punches something
+        """
+        return Fighter.DEFAULT_DAMAGE
         
     def isPunching(self):
         return self.curState == Fighter.PUNCHING
+    
+    def isGettingHit(self):
+        return self.curState == Fighter.GETTING_HIT
         
     def updateMovePunchHit(self,xMove,yMove,bool_start_punch,bool_start_hit):
         """
@@ -318,6 +403,10 @@ class Enemy(Fighter):
 
 class Hero(Fighter):
     """The hero class."""
+    #Health
+    MAX_HEALTH = 100
+    #Damage taken by punches
+    GET_PUNCH_DAMAGE = 5
     #Movement speed in pixels per tick
     MOVE_SPEED = 2
     #The walking animation, tuple of tuples of surfaces and rects
@@ -350,10 +439,12 @@ class Hero(Fighter):
         
         #Flags for starting animations
         self.start_punch = self.start_hit = False
-
         
-    def getPunched(self):
+    def getPunched(self,enemy_fighter):
         self.start_hit = True
+        #Only do damage if just starting to get hit
+        if  not self.isGettingHit():
+            self.takeHit(enemy_fighter)
     
     def update(self):
         """Update the sprite based on 

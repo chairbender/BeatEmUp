@@ -22,6 +22,7 @@ class BeatEmUpMain:
         #Holds all of our sprites
         self.sprite_group = pygame.sprite.RenderPlain()
         self.enemy_sprite_group = pygame.sprite.RenderPlain()
+        self.health_bar_group = pygame.sprite.RenderPlain()
         # clock for ticking
         self.clock = pygame.time.Clock()
         
@@ -46,6 +47,10 @@ class BeatEmUpMain:
         
         self.enemy = Enemy(self.width/2 + 20,self.height/2 + 20)
         self.enemy_sprite_group.add(self.enemy)
+        
+        #Create hero healthbar
+        self.heroBar = HealthBar(5,5,0,Hero.MAX_HEALTH,self.hero.getHealth(),self.width/4,self.height/16,"Hero")
+        self.health_bar_group.add(self.heroBar)
         
     
     def MainLoop(self):
@@ -84,12 +89,13 @@ class BeatEmUpMain:
             #Check for player getting punched and resolve (only can get punched 1ce per tick
             for enemy in self.enemy_sprite_group:
                 if pygame.sprite.spritecollide(enemy, self.sprite_group, False, Fighter.checkPunches):
-                    self.hero.getPunched()
+                    self.hero.getPunched(enemy)
                     break
 
             """Let everything update"""
             self.hero.update()
             self.enemy_sprite_group.update()
+            self.heroBar.setValue(self.hero.getHealth())
 
             
             """Draw all sprites"""
@@ -99,6 +105,7 @@ class BeatEmUpMain:
             #draw everything   
             self.sprite_group.draw(self.screen)
             self.enemy_sprite_group.draw(self.screen)
+            self.health_bar_group.draw(self.screen)
             pygame.display.flip()        
 
 
