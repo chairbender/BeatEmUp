@@ -77,11 +77,16 @@ class BeatEmUpMain:
                 enemy.doMove(self.hero)
                                             
             """Check for collisions"""
-            #Check for collisions between punching player and enemy
-            punched_enemy_list = pygame.sprite.spritecollide(self.hero, self.enemy_sprite_group, False, Hero.punchDetector)
+            #Check for collisions between punching player and enemy and resolve
+            punched_enemy_list = pygame.sprite.spritecollide(self.hero, self.enemy_sprite_group, False, Fighter.checkPunches)
             for enemy in punched_enemy_list:
                 enemy.getPunched()
-            
+            #Check for player getting punched and resolve (only can get punched 1ce per tick
+            for enemy in self.enemy_sprite_group:
+                if pygame.sprite.spritecollide(enemy, self.sprite_group, False, Fighter.checkPunches):
+                    self.hero.getPunched()
+                    break
+
             """Let everything update"""
             self.hero.update()
             self.enemy_sprite_group.update()

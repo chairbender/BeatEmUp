@@ -3,6 +3,7 @@ Created on Apr 29, 2012
 
 @author: Kyle
 '''
+#TODO: Finish refactoring implementing Fighter class
 
 import pygame, math, random
 from pygame.transform import *
@@ -59,12 +60,22 @@ class Mover(pygame.sprite.Sprite):
         #Holds the current animation
         self.current_animation = self.idle_animation
         
+        #Direciton being faced (1 for right, -1 for left)
+        self.facing_right = True      
+        
         #Initialize our rect and image
         self.image, self.rect = (self.idle_animation[0],\
                                  self.idle_animation[0].get_rect())
         
         #How many ticks have elapsed since the restart of the current animation     
         self.anim_timer = 0
+        
+        
+    def facePosition(self,faceX):
+        """
+        Turn to face the given position (overridden by movement)
+        """
+        self.facing_right = faceX > self.rect.centerx
         
     def moveUpdate(self,xMove,yMove):
         """
@@ -78,6 +89,10 @@ class Mover(pygame.sprite.Sprite):
         if xMove != 0 or yMove != 0:
             self.current_animation = self.walk_animation  
             self.rect.move_ip(xMove,yMove)
+            if xMove > 0:
+                self.facing_right = True
+            elif xMove < 0:
+                self.facing_right = False
         else:
             #idle
             self.current_animation = self.idle_animation            
@@ -91,9 +106,99 @@ class Mover(pygame.sprite.Sprite):
         #calculate which frame of animation we are on
         anim_index = self.anim_timer / self.current_animation.animation_speed
         #Actually update the image to the frame we are on
-        self.image = self.current_animation[anim_index]
+        if self.facing_right:
+            self.image = self.current_animation[anim_index]
+        else:
+            self.image = flip(self.current_animation[anim_index], True, False)
+
+class Fighter(Mover):
+    """
+    Base class for a sprite that moves, punches and gets hit
+    """
+    #States
+    IDLE_OR_MOVING,PUNCHING,GETTING_HIT = range(3)
+    
+    def __init__(self,walk_animation,idle_animation,hit_animation,punch_animation):
+        Mover.__init__(self,walk_animation,idle_animation)
         
-class Enemy(Mover):
+        #Our animations
+        self.hit_animation = hit_animation
+        self.punch_animation = punch_animation
+        
+        #Our saved state
+        #Whether we are in the middle of a one time animation like getting hit or punching
+        self.curState = Fighter.IDLE_OR_MOVING
+        
+    def isPunching(self):
+        return self.curState == Fighter.PUNCHING
+        
+    def updateMovePunchHit(self,xMove,yMove,bool_start_punch,bool_start_hit):
+        """
+        updates state, animations and position
+        move based on the passed speed, also process punching
+        and getting hit based on those boolean parameters
+        """
+               
+
+        #If we started to get hit, start hit animation
+        if bool_start_hit and self.curState != Fighter.GETTING_HIT:
+            self.current_animation = self.hit_animation
+            self.curState = Fighter.GETTING_HIT
+            self.anim_timer = 0
+        #start punching if we just started and aren't already animating
+        if bool_start_punch and self.curState != Fighter.PUNCHING and self.curState != Fighter.GETTING_HIT:
+            self.current_animation = self.punch_animation
+            self.curState = Fighter.PUNCHING
+            self.anim_timer = 0
+        #Check if we have finished animations if we are in a one time animation
+        if  (self.curState == Fighter.PUNCHING or self.curState == Fighter.GETTING_HIT) and \
+            self.anim_timer == len(self.current_animation) * self.current_animation.animation_speed - 1:
+            #become idle
+            self.curState = Fighter.IDLE_OR_MOVING
+                
+        #Move if we aren't doing something else (or do idle anim)
+        if self.curState == Fighter.IDLE_OR_MOVING:
+            self.moveUpdate(xMove, yMove)
+            
+        self.advanceAnimation()
+        
+    def getPunchRect(self):
+        """
+        get the rect in global coordinates that represents the hitbox
+        of where the punch is
+        """
+        #Default to a little ahead of wherever they are facing, with a little band
+        rightrect = Rect(self.rect.right - 10,
+                                    self.rect.centery,
+                                    self.rect.width/2,
+                                    20)
+        #Flip across centerx if facing left
+        if self.facing_right:
+            return rightrect
+        else:
+            return Rect(self.rect.centerx - rightrect.width - (rightrect.left - self.rect.centerx),
+                                     rightrect.top, rightrect.width, rightrect.height)
+
+    
+    def getHitBox(self):
+        """
+        get the rect in global coordinates that represents the place
+        where this sprite can get punched
+        """
+        #Default to a little span near the midsection
+        return Rect(self.rect.left,self.rect.centery,
+                                         self.rect.width,20)
+    
+    @staticmethod
+    def checkPunches(fighter_puncher,fighter_target):
+        """
+        Use the fighters punchRect and hitboxes to check if puncher
+        hits target (for use with spritecollide)
+        """
+
+        return fighter_puncher.isPunching() and fighter_puncher.getPunchRect().colliderect(fighter_target.getHitBox())
+        
+class Enemy(Fighter):
     """Enemy that moves sporadically towards
     player"""
     
@@ -102,67 +207,101 @@ class Enemy(Mover):
     STOP_PROBABILITY = .025
     #Rect for getting punched
     HIT_BOX_IN_LOCAL = None
-    #States
-    IDLE_OR_MOVING, HIT = range(2)
+    #How long to wait before punching when in position
+    PUNCH_DELAY = 45
+    
+    #States for punching
+    NOT_READY,READYING_PUNCH = range(2)
     
     
     s_walk_animation = None
     s_hit_animation = None 
     s_idle_animation = None 
+    s_punch_animation = None
     
     def __init__(self, xPos, yPos):
         #Initialize static vars if first time
         if Enemy.s_walk_animation == None:   
             Enemy.s_walk_animation = Animation('enemy_walk_',8)
             Enemy.s_hit_animation = Animation('enemy_hit_',12)
-            Enemy.s_idle_animation = Animation('enemy_idle_',8)   
+            Enemy.s_idle_animation = Animation('enemy_idle_',8)  
+            Enemy.s_punch_animation = Animation('enemy_punch_',8) 
               
             Enemy.HIT_BOX_IN_LOCAL = Rect(0,Enemy.s_idle_animation[0].get_rect().height/2,
                                          Enemy.s_idle_animation[0].get_rect().width,20)
             
             
-        Mover.__init__(self,Enemy.s_walk_animation,Enemy.s_idle_animation)   
+        Fighter.__init__(self,Enemy.s_walk_animation,Enemy.s_idle_animation,Enemy.s_hit_animation,Enemy.s_punch_animation)   
         
-        #tracking velocity
-        self.xspeed, self.yspeed = 0, 0
-                
         #Set position
         self.rect.move_ip(xPos,yPos)
         
         #Number of ticks to wait before moving again
         self.wait_count = 0
+        self.punch_wait_count = 20
         
-        self.state = Enemy.IDLE_OR_MOVING
-        self.prevstate = Enemy.IDLE_OR_MOVING
+        #Flags for tracking punching and hitting
+        self.bool_start_hit = self.bool_start_punch = False
+        
+        #Flag for tracking getting ready to punch
+        self.state = Enemy.NOT_READY
         
     def getPunched(self):
         """
         Call when enemy is getting punched.
         Expected to be called before update each tick
         """
-        if self.state != Enemy.HIT:
-            self.state = Enemy.HIT
+        self.bool_start_hit = True
             
     def doMove(self,hero):
         """
         choose what to do based on the position of the Hero
         """
+        #Calculate coordinates for destination and slack
+        selfx, selfy = self.rect.centerx, self.rect.centery
+        #How much slack to give for going to that position (so it doesn't spaz out trying to stay
+        #exactly on the dest)
+        slackx = slacky = 8
+        desty = hero.rect.centery
+        #If hero is to our left, get in front of their right side,
+        #otherwise left
+        if hero.rect.centerx < selfx:
+            destx = hero.rect.right + self.rect.width/4
+        else:
+            destx = hero.rect.left - self.rect.width/4
+        
         #Check if we are currently waiting
         if self.wait_count > 0:
             self.wait_count -= 1
             self.xspeed = self.yspeed = 0
-        else:
-            self.state = Enemy.IDLE_OR_MOVING
-            herox, heroy = hero.rect.centerx, hero.rect.centery
-            selfx, selfy = self.rect.centerx, self.rect.centery
-    
-            if herox > selfx:
+        #Check if we are in position in front of player
+        elif destx > selfx - slackx and destx < selfx + slackx and \
+            desty > selfy - slacky and desty < selfy + slacky:
+            #Don't move
+            self.xspeed = self.yspeed = 0
+            #Face the hero
+            self.facePosition(hero.rect.centerx)
+            #If we just got in range, start the punch countdown
+            if self.state == Enemy.NOT_READY:
+                self.state = Enemy.READYING_PUNCH
+                self.punch_wait_count = Enemy.PUNCH_DELAY
+            #decrement punch wait count
+            self.punch_wait_count -= 1
+            #Check if we are done waiting to punch
+            if self.punch_wait_count == 0:
+                self.bool_start_punch = True
+                self.punch_wait_count = Enemy.PUNCH_DELAY            
+        else:            
+            #We aren't in position
+            self.state = Enemy.NOT_READY
+            #Move to destination position    
+            if destx > selfx:
                 self.xspeed = Enemy.MOVE_SPEED
-            else:
+            elif destx < selfx:
                 self.xspeed = -Enemy.MOVE_SPEED
-            if heroy > selfy:
+            if desty > selfy:
                 self.yspeed = Enemy.MOVE_SPEED
-            else:
+            elif desty < selfy:
                 self.yspeed = -Enemy.MOVE_SPEED
                 
             #Randomly decide to stop
@@ -172,23 +311,12 @@ class Enemy(Mover):
                 self.wait_count = random.randint(20,60)
     
     def update(self):
-        if self.state == Enemy.HIT:
-            #If we started to get hit, start hit animation
-            if self.prevstate != Enemy.HIT:
-                self.current_animation = Enemy.s_hit_animation
-                self.anim_timer = 0
-            #Check if we are done getting hit
-            if self.anim_timer == len(Enemy.s_hit_animation) * Enemy.s_hit_animation.animation_speed - 1:
-                    self.state = Enemy.IDLE_OR_MOVING
-        if self.state == Enemy.IDLE_OR_MOVING:
-            self.moveUpdate(self.xspeed, self.yspeed)
-            
-        self.advanceAnimation()
-        
-        self.prevstate = self.state
+        self.updateMovePunchHit(self.xspeed, self.yspeed, self.bool_start_punch, self.bool_start_hit)
+        #clear flags
+        self.bool_start_hit = self.bool_start_punch = False
         
 
-class Hero(Mover):
+class Hero(Fighter):
     """The hero class."""
     #Movement speed in pixels per tick
     MOVE_SPEED = 2
@@ -196,8 +324,6 @@ class Hero(Mover):
     s_walk_animation = None
     s_punch_animation = None 
     s_idle_animation = None 
-    #Possible states
-    MOVING_OR_IDLE,PUNCHING = range(2)
     
     #HitBox is a Rect for punching in local coordinate space, defined
     #as if hero facing right
@@ -209,7 +335,8 @@ class Hero(Mover):
         if Hero.s_walk_animation == None:   
             Hero.s_walk_animation = Animation('hero_walk_',8)
             Hero.s_punch_animation = Animation('hero_punch_',8)
-            Hero.s_idle_animation = Animation('hero_idle_',8)     
+            Hero.s_idle_animation = Animation('hero_idle_',8)
+            Hero.s_hit_animation = Animation('hero_hit_',8)      
             
             Hero.PUNCH_HIT_BOX_IN_LOCAL = Rect(Hero.s_idle_animation[0].get_rect().width/2,
                                     Hero.s_idle_animation[0].get_rect().height/2,
@@ -219,41 +346,23 @@ class Hero(Mover):
         #End initializing static vars
         
         #Call constructor of parent
-        Mover.__init__(self,Hero.s_walk_animation,Hero.s_idle_animation)   
+        Fighter.__init__(self,Hero.s_walk_animation,Hero.s_idle_animation,Hero.s_hit_animation,Hero.s_punch_animation)   
         
-        #Holds the state
-        self.state = Hero.MOVING_OR_IDLE
+        #Flags for starting animations
+        self.start_punch = self.start_hit = False
 
         
+    def getPunched(self):
+        self.start_hit = True
+    
     def update(self):
         """Update the sprite based on 
         current sprite state - should be called after sending move commands"""
+        self.updateMovePunchHit(self.xMove, self.yMove, self.start_punch, self.start_hit)
         
-        """Decide which animation we should be in"""
-        #check if we are punching
-        if (self.state == Hero.PUNCHING):
-            #start punching if we just started
-            if (self.prevState != Hero.PUNCHING):
-                self.current_animation = Hero.s_punch_animation
-                self.anim_timer = 0
-            else:
-                #Check if we should stop punching animation (if we are at the end of the animation)
-                if self.anim_timer == len(Hero.s_punch_animation) * Hero.s_punch_animation.animation_speed - 1:
-                    #Go back to moving if we were moving before we started punching,
-                    #Otherwise become IDLE
-                    self.state = Hero.MOVING_OR_IDLE
-                        
-        #Now we might've started moving or being idle, so
-        #check and update animation and position accordingly
-        #using the parent's method
-        if (self.state == Hero.MOVING_OR_IDLE):
-            self.moveUpdate(self.xMove,self.yMove)         
-                
-        #Advance the animation
-        self.advanceAnimation()
-                
-        #remember the state from this tick
-        self.prevState = self.state
+        #Reset the animation starting flags  
+        self.start_punch = self.start_hit = False
+             
         
     def move(self,event_type,key):
         """
@@ -265,8 +374,8 @@ class Hero(Mover):
         #Check if punch command issued, change state if not 
         #already punching
         if (event_type == KEYDOWN and key == K_z and
-            self.state != Hero.PUNCHING):
-            self.state = Hero.PUNCHING
+            not self.isPunching()):
+            self.start_punch = True
             return
         
         #If KEYUP, stop moving in that direction
@@ -292,15 +401,5 @@ class Hero(Mover):
         position of this hero to in the current map"""
         self.rect.move_ip(position[0],position[1])
 
-    @staticmethod        
-    def punchDetector(hero,enemy):
-        """
-        Detects if a hero has punched an enemy
-        """
-        #Transform the recs to the global coordinate space
-        transformed_punch_rec = Hero.PUNCH_HIT_BOX_IN_LOCAL.move(hero.rect.left,hero.rect.top)
-        transformed_hit_rec = Enemy.HIT_BOX_IN_LOCAL.move(enemy.rect.left,enemy.rect.top)
-        
-        return hero.state == Hero.PUNCHING and transformed_punch_rec.colliderect(transformed_hit_rec)
         
         
