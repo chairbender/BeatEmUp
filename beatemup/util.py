@@ -47,7 +47,11 @@ def getAnimation(image_prefix):
     while True:
         suffix = "%04d" % index
         try:
-            result.append(pygame.image.load(fullname_prefix + suffix + '.png'))
+            image = pygame.image.load(fullname_prefix + suffix + '.png')
+            image = image.convert()
+            colorkey = image.get_at((0,0))
+            image.set_colorkey(colorkey, RLEACCEL)
+            result.append(image)
         except pygame.error, message:
             #Done loading frames, break
             break

@@ -11,8 +11,6 @@ import pygame
 from beatemup.actors import *
 from pygame.locals import *
 
-"""TODO: Implement punchen"""
-
 class BeatEmUpMain:
     """The Main PyMan Class - This class handles the main 
     initialization and creating of the Game."""
@@ -23,6 +21,7 @@ class BeatEmUpMain:
         self.hero = None
         #Holds all of our sprites
         self.sprite_group = pygame.sprite.RenderPlain()
+        self.enemy_sprite_group = pygame.sprite.RenderPlain()
         # clock for ticking
         self.clock = pygame.time.Clock()
         
@@ -44,6 +43,10 @@ class BeatEmUpMain:
         self.sprite_group.add(self.hero)
         #Make hero start in the center of the screen
         self.hero.setPosition((self.width/2,self.height/2))
+        
+        self.enemy = Enemy(self.width/2 + 20,self.height/2 + 20)
+        self.enemy_sprite_group.add(self.enemy)
+        
     
     def MainLoop(self):
         """This is the Main Loop of the Game"""
@@ -68,11 +71,21 @@ class BeatEmUpMain:
                     sys.exit()
                 elif event.type == KEYDOWN or event.type == KEYUP:
                     self.hero.move(event.type, event.key)
-                        
+             
             #Let AI actors move
+            for enemy in self.enemy_sprite_group:
+                enemy.doMove(self.hero)
+                                            
+            """Check for collisions"""
+            #Check for collisions between punching player and enemy
+            punched_enemy_list = pygame.sprite.spritecollide(self.hero, self.enemy_sprite_group, False, Hero.punchDetector)
+            for enemy in punched_enemy_list:
+                enemy.getPunched()
             
             """Let everything update"""
             self.hero.update()
+            self.enemy_sprite_group.update()
+
             
             """Draw all sprites"""
             #Blit the screen with our black background
@@ -80,6 +93,7 @@ class BeatEmUpMain:
             
             #draw everything   
             self.sprite_group.draw(self.screen)
+            self.enemy_sprite_group.draw(self.screen)
             pygame.display.flip()        
 
 
