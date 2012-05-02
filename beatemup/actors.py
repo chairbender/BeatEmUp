@@ -171,7 +171,8 @@ class Mover(pygame.sprite.Sprite):
 
 class Fighter(Mover):
     """
-    Base class for a sprite that moves, punches and gets hit
+    Base class for a sprite that moves, punches and gets hit.
+    Also has health. Override those methods to change its stats
     """
     
     #Default health for a fighter
@@ -181,7 +182,8 @@ class Fighter(Mover):
     #States
     IDLE_OR_MOVING,PUNCHING,GETTING_HIT = range(3)
     
-    def __init__(self,walk_animation,idle_animation,hit_animation,punch_animation):
+    def __init__(self,walk_animation,idle_animation,hit_animation,punch_animation,
+                 name="Fighter",max_health=100):
         Mover.__init__(self,walk_animation,idle_animation)
         
         #Our animations
@@ -193,10 +195,50 @@ class Fighter(Mover):
         self.curState = Fighter.IDLE_OR_MOVING        
                 
         #Track health
-        self.health = Fighter.DEFAULT_HEALTH  
+        self.health = max_health
+        
+        self.name = name
+        
+        self.max_health = max_health
+        
+    def getHealthBar(self,rect_position):
+        """
+        Return a healthbar representing the current
+        state of the fighter, positioned at the passed rect in global coordinates
+        """
+        return HealthBar(rect_position.left,rect_position.top,0,self.getMaxHealth(),self.getHealth(), \
+                         rect_position.width,rect_position.height,self.getName())
+        
+    def getName(self):
+        """
+        Return the name of this actor, meant to be overridden
+        """
+        return self.name
 
     def getHealth(self):
+        """
+        Return remaining health (self.health)
+        """
         return self.health
+    
+    def getPunched(self,enemy_fighter):
+        """
+        Default behavior is to set the
+        self.start_hit flag and take damage
+        if not already being hit. subclasses can
+        use the self.start_hit flag in their update
+        method, or override this
+        """
+        self.start_hit = True
+        #Only do damage if just starting to get hit
+        if  not self.isGettingHit():
+            self.takeHit(enemy_fighter)
+    
+    def getMaxHealth(self):
+        """
+        Return the max health of the actor
+        """
+        return self.max_health
     
     def takeHit(self,fighter_attacker):
         """
@@ -316,7 +358,8 @@ class Enemy(Fighter):
                                          Enemy.s_idle_animation[0].get_rect().width,20)
             
             
-        Fighter.__init__(self,Enemy.s_walk_animation,Enemy.s_idle_animation,Enemy.s_hit_animation,Enemy.s_punch_animation)   
+        Fighter.__init__(self,Enemy.s_walk_animation,Enemy.s_idle_animation,Enemy.s_hit_animation,Enemy.s_punch_animation,
+                         "Enemy",50)   
         
         #Set position
         self.rect.move_ip(xPos,yPos)
@@ -326,17 +369,10 @@ class Enemy(Fighter):
         self.punch_wait_count = 20
         
         #Flags for tracking punching and hitting
-        self.bool_start_hit = self.bool_start_punch = False
+        self.start_hit = self.bool_start_punch = False
         
         #Flag for tracking getting ready to punch
         self.state = Enemy.NOT_READY
-        
-    def getPunched(self):
-        """
-        Call when enemy is getting punched.
-        Expected to be called before update each tick
-        """
-        self.bool_start_hit = True
             
     def doMove(self,hero):
         """
@@ -396,9 +432,9 @@ class Enemy(Fighter):
                 self.wait_count = random.randint(20,60)
     
     def update(self):
-        self.updateMovePunchHit(self.xspeed, self.yspeed, self.bool_start_punch, self.bool_start_hit)
+        self.updateMovePunchHit(self.xspeed, self.yspeed, self.bool_start_punch, self.start_hit)
         #clear flags
-        self.bool_start_hit = self.bool_start_punch = False
+        self.start_hit = self.bool_start_punch = False
         
 
 class Hero(Fighter):
@@ -435,16 +471,11 @@ class Hero(Fighter):
         #End initializing static vars
         
         #Call constructor of parent
-        Fighter.__init__(self,Hero.s_walk_animation,Hero.s_idle_animation,Hero.s_hit_animation,Hero.s_punch_animation)   
+        Fighter.__init__(self,Hero.s_walk_animation,Hero.s_idle_animation,Hero.s_hit_animation,Hero.s_punch_animation,
+                         "Hero",100)   
         
         #Flags for starting animations
         self.start_punch = self.start_hit = False
-        
-    def getPunched(self,enemy_fighter):
-        self.start_hit = True
-        #Only do damage if just starting to get hit
-        if  not self.isGettingHit():
-            self.takeHit(enemy_fighter)
     
     def update(self):
         """Update the sprite based on 

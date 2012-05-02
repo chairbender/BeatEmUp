@@ -5,6 +5,8 @@ Entry point for beatemup. Starts the main loop
 
 @author: Kyle
 '''
+#TODO: Implement displaying the health bar of the last enemy that was hit,
+#for a few ticks
 
 import os, sys
 import pygame
@@ -48,11 +50,6 @@ class BeatEmUpMain:
         self.enemy = Enemy(self.width/2 + 20,self.height/2 + 20)
         self.enemy_sprite_group.add(self.enemy)
         
-        #Create hero healthbar
-        self.heroBar = HealthBar(5,5,0,Hero.MAX_HEALTH,self.hero.getHealth(),self.width/4,self.height/16,"Hero")
-        self.health_bar_group.add(self.heroBar)
-        
-    
     def MainLoop(self):
         """This is the Main Loop of the Game"""
         
@@ -63,6 +60,18 @@ class BeatEmUpMain:
         self.background = pygame.Surface(self.screen.get_size())
         self.background = self.background.convert()
         self.background.fill((255,255,255))
+        
+        """INitialize UI related vars"""
+        #For showing/hiding the enemy's health bar when they get hit
+        enemy_bar_timer = 0               
+        #Last enemy hit
+        last_enemy = None                       
+        #Rect where hero health bar will go
+        hero_healthbar_rect = Rect(5,5,self.width/4,self.height/16)        
+        #Position on the screen where the enemy health bar will be
+        enemy_healthbar_rect = Rect(self.width*(3.0/4) - 5,5,self.width - self.width*(3.0/4), self.height/16)
+        #How long to wait till hiding the bar for an enemy
+        ENEMY_HEALTHBAR_HIDE_TIME = 120
         
         while 1:
             #Advance clock
@@ -82,10 +91,16 @@ class BeatEmUpMain:
                 enemy.doMove(self.hero)
                                             
             """Check for collisions"""
+            #Will hold the last enemy hit
             #Check for collisions between punching player and enemy and resolve
+            #Track whether we hit an enemy
+            enemy_hit = False
             punched_enemy_list = pygame.sprite.spritecollide(self.hero, self.enemy_sprite_group, False, Fighter.checkPunches)
             for enemy in punched_enemy_list:
-                enemy.getPunched()
+                last_enemy = enemy
+                enemy_bar_timer = ENEMY_HEALTHBAR_HIDE_TIME
+                enemy_hit = True
+                enemy.getPunched(self.hero)
             #Check for player getting punched and resolve (only can get punched 1ce per tick
             for enemy in self.enemy_sprite_group:
                 if pygame.sprite.spritecollide(enemy, self.sprite_group, False, Fighter.checkPunches):
@@ -95,7 +110,21 @@ class BeatEmUpMain:
             """Let everything update"""
             self.hero.update()
             self.enemy_sprite_group.update()
-            self.heroBar.setValue(self.hero.getHealth())
+            
+            #Update the health bars
+            #If no enemy was hit, count down the healthbar hide time and stop showing the
+            #enemy health if it reaches zero
+            if not enemy_hit:
+                enemy_bar_timer -= 1
+                if enemy_bar_timer == 0:
+                    #set this to none so the healthbar won't be drawn this tick
+                    last_enemy = None
+            #Refresh the health bar group (might be slow, TODO)
+            self.health_bar_group.empty()
+            self.health_bar_group.add(self.hero.getHealthBar(hero_healthbar_rect))
+            #Only show health bar if there
+            if last_enemy != None:
+                self.health_bar_group.add(last_enemy.getHealthBar(enemy_healthbar_rect))
 
             
             """Draw all sprites"""
