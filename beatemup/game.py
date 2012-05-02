@@ -40,6 +40,8 @@ class Level(object):
         self.health_bar_group = pygame.sprite.RenderPlain()
         # clock for ticking
         self.clock = pygame.time.Clock()
+        #The actual level surface
+        self.level_surface = pygame.Surface((level_width,self.height))
         
     def play(self):
         """
@@ -58,6 +60,9 @@ class Level(object):
         enemy_healthbar_rect = Rect(self.width*(3.0/4) - 5,5,self.width - self.width*(3.0/4), self.height/16)
         #How long to wait till hiding the bar for an enemy
         ENEMY_HEALTHBAR_HIDE_TIME = 120
+        #track how far the level is scrolled horizontally
+        level_scroll = 0
+        
         
         """Main loop"""
         while 1:
@@ -84,7 +89,16 @@ class Level(object):
                     sprite.rect.top = max(self.height/2,sprite.rect.top)
                     sprite.rect.bottom = min(self.height,sprite.rect.bottom)
             
-            
+            #If the hero goes left or right outside the screen, scroll left or right
+            #if not out of level bounds
+            if self.hero.rect.right > self.width + level_scroll:
+                #If out of level bounds, stop
+                self.hero.rect.right = min(self.hero.rect.right,self.level_width)
+                level_scroll += self.hero.rect.right - (self.width + level_scroll)
+            elif self.hero.rect.left < level_scroll:
+                #if out of bounds, stop
+                self.hero.rect.left = max(self.hero.rect.left,0)
+                level_scroll += self.hero.rect.left - level_scroll
             #Will hold the last enemy hit
             #Check for collisions between punching player and enemy and resolve
             #Track whether we hit an enemy
@@ -123,12 +137,18 @@ class Level(object):
             
             """Draw all sprites"""
             #Blit the screen with our black background
-            self.screen.blit(self.background, (0, 0))    
+            self.level_surface.blit(self.background, (0, 0))    
              
-            #draw everything   
-            self.sprite_group.draw(self.screen)
-            self.enemy_sprite_group.draw(self.screen)
-            self.health_bar_group.draw(self.screen)
+            #draw sprites
+            self.sprite_group.draw(self.level_surface)
+            self.enemy_sprite_group.draw(self.level_surface)
+            
+            viewport = self.level_surface.subsurface(Rect(level_scroll,0,self.width,self.height))
+            #Draw UI
+            self.health_bar_group.draw(viewport)
+            
+            #Now put it on the screen
+            self.screen.blit(viewport,(0,0))
             pygame.display.flip()      
         
     
@@ -139,7 +159,7 @@ class Level(object):
         self.p_loadSprites()
 
         """Create the background"""
-        self.background = pygame.Surface(self.screen.get_size())
+        self.background = pygame.Surface((self.level_width,self.height))
         self.background = self.background.convert()
         self.background.fill((255,255,255))
         
