@@ -103,6 +103,8 @@ class Mover(pygame.sprite.Sprite):
     based on the current animation
     """
     IDLE, MOVING = range(2)
+    #Scaling of y velocity due to high viewing angle
+    YSCALE = .8
     
     def __init__(self,walk_animation,idle_animation):
         pygame.sprite.Sprite.__init__(self) 
@@ -146,7 +148,7 @@ class Mover(pygame.sprite.Sprite):
         #check and update animation and position accordingly
         if xMove != 0 or yMove != 0:
             self.current_animation = self.walk_animation  
-            self.rect.move_ip(xMove,yMove)
+            self.rect.move_ip(xMove,yMove*Mover.YSCALE)
             if xMove > 0:
                 self.facing_right = True
             elif xMove < 0:

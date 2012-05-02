@@ -91,6 +91,13 @@ class BeatEmUpMain:
                 enemy.doMove(self.hero)
                                             
             """Check for collisions"""
+            #keep all sprites into the movement area (the bottom half of the screen)
+            for group in self.sprite_group, self.enemy_sprite_group:
+                for sprite in group:
+                    sprite.rect.top = max(self.height/2,sprite.rect.top)
+                    sprite.rect.bottom = min(self.height,sprite.rect.bottom)
+            
+            
             #Will hold the last enemy hit
             #Check for collisions between punching player and enemy and resolve
             #Track whether we hit an enemy
@@ -129,13 +136,13 @@ class BeatEmUpMain:
             
             """Draw all sprites"""
             #Blit the screen with our black background
-            self.screen.blit(self.background, (0, 0))     
-            
+            self.screen.blit(self.background, (0, 0))    
+             
             #draw everything   
             self.sprite_group.draw(self.screen)
             self.enemy_sprite_group.draw(self.screen)
             self.health_bar_group.draw(self.screen)
-            pygame.display.flip()        
+            pygame.display.flip()      
 
 
 
