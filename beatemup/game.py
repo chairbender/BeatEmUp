@@ -3,25 +3,154 @@ Created on Apr 30, 2012
 For managing game state
 @author: Kyle
 '''
-
-
 import os, sys
 import pygame
 from beatemup.actors import *
 from pygame.locals import *
 
-class GameState(object):
+"""
+As a programmer, I want to specify a saved level file and have the user play it,
+returning when the level is over, and letting me know the return state (did he win, die, or what)
+"""
+
+class Level(object):
     """
-    Tracks the state of the whole game
+    A playable level. Has a background, a length,
+    the positions of enemies, and the ability to play it
     """
     
-    def __init__(self, prev=None):
+    def __init__(self,screen,level_width):
         """
-        prev: previous state
+        Initialize the level, using the passed screen as the surface to draw on.
+        For a level that is level_width pixels long (but only screen size portion displayed
+        at a time)
         """
+        self.screen = screen
         
-        if prev != None:
-            self.hero_position = prev.hero_position
-        else:
-            #The position of the hero
-            self.hero_position = None
+        self.width = self.screen.get_rect().width
+        self.height = self.screen.get_rect().height
+        
+        self.level_width = level_width
+        
+        #Our fields
+        self.hero = None
+        #Holds all of our sprites
+        self.sprite_group = pygame.sprite.RenderPlain()
+        self.enemy_sprite_group = pygame.sprite.RenderPlain()
+        self.health_bar_group = pygame.sprite.RenderPlain()
+        # clock for ticking
+        self.clock = pygame.time.Clock()
+        
+    def play(self):
+        """
+        play the level, returning when hero dead or wins
+        """        
+        self.p_initializePlay()
+        
+        """Initialize UI related vars"""
+        #For showing/hiding the enemy's health bar when they get hit
+        enemy_bar_timer = 0               
+        #Last enemy hit
+        last_enemy = None                       
+        #Rect where hero health bar will go
+        hero_healthbar_rect = Rect(5,5,self.width/4,self.height/16)        
+        #Position on the screen where the enemy health bar will be
+        enemy_healthbar_rect = Rect(self.width*(3.0/4) - 5,5,self.width - self.width*(3.0/4), self.height/16)
+        #How long to wait till hiding the bar for an enemy
+        ENEMY_HEALTHBAR_HIDE_TIME = 120
+        
+        """Main loop"""
+        while 1:
+            #Advance clock
+            self.clock.tick(60)
+            
+            """Let all sprites move"""
+            #Let player move
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: 
+                    sys.exit()
+                elif event.type == KEYDOWN or event.type == KEYUP:
+                    self.hero.move(event.type, event.key)
+             
+            #Let AI actors move
+            for enemy in self.enemy_sprite_group:
+                enemy.doMove(self.hero)
+                                            
+            """Check for collisions"""
+            #keep all sprites into the movement area (the bottom half of the screen)
+            for group in self.sprite_group, self.enemy_sprite_group:
+                for sprite in group:
+                    sprite.rect.top = max(self.height/2,sprite.rect.top)
+                    sprite.rect.bottom = min(self.height,sprite.rect.bottom)
+            
+            
+            #Will hold the last enemy hit
+            #Check for collisions between punching player and enemy and resolve
+            #Track whether we hit an enemy
+            enemy_hit = False
+            punched_enemy_list = pygame.sprite.spritecollide(self.hero, self.enemy_sprite_group, False, Fighter.checkPunches)
+            for enemy in punched_enemy_list:
+                last_enemy = enemy
+                enemy_bar_timer = ENEMY_HEALTHBAR_HIDE_TIME
+                enemy_hit = True
+                enemy.getPunched(self.hero)
+            #Check for player getting punched and resolve (only can get punched 1ce per tick
+            for enemy in self.enemy_sprite_group:
+                if pygame.sprite.spritecollide(enemy, self.sprite_group, False, Fighter.checkPunches):
+                    self.hero.getPunched(enemy)
+                    break
+
+            """Let everything update"""
+            self.hero.update()
+            self.enemy_sprite_group.update()
+            
+            #Update the health bars
+            #If no enemy was hit, count down the healthbar hide time and stop showing the
+            #enemy health if it reaches zero
+            if not enemy_hit:
+                enemy_bar_timer -= 1
+                if enemy_bar_timer == 0:
+                    #set this to none so the healthbar won't be drawn this tick
+                    last_enemy = None
+            #Refresh the health bar group (might be slow, TODO)
+            self.health_bar_group.empty()
+            self.health_bar_group.add(self.hero.getHealthBar(hero_healthbar_rect))
+            #Only show health bar if there
+            if last_enemy != None:
+                self.health_bar_group.add(last_enemy.getHealthBar(enemy_healthbar_rect))
+
+            
+            """Draw all sprites"""
+            #Blit the screen with our black background
+            self.screen.blit(self.background, (0, 0))    
+             
+            #draw everything   
+            self.sprite_group.draw(self.screen)
+            self.enemy_sprite_group.draw(self.screen)
+            self.health_bar_group.draw(self.screen)
+            pygame.display.flip()      
+        
+    
+    def p_initializePlay(self):
+        """
+        Initialize all the stuff before going into the main loop
+        """
+        self.p_loadSprites()
+
+        """Create the background"""
+        self.background = pygame.Surface(self.screen.get_size())
+        self.background = self.background.convert()
+        self.background.fill((255,255,255))
+        
+
+    def p_loadSprites(self):
+        """Initialize all of the sprites we contain, add them
+        to the overall sprite group"""
+        self.hero = Hero()
+        self.sprite_group.add(self.hero)
+        #Make hero start in the center of the screen
+        self.hero.setPosition((self.width/2,self.height/2))
+        
+        self.enemy = Enemy(self.width/2 + 20,self.height/2 + 20)
+        self.enemy_sprite_group.add(self.enemy)
