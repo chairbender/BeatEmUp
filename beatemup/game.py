@@ -40,6 +40,7 @@ class Level(object):
         self.sprite_group = pygame.sprite.RenderPlain()
         self.enemy_sprite_group = pygame.sprite.RenderPlain()
         self.health_bar_group = pygame.sprite.RenderPlain()
+        self.shadow_group = pygame.sprite.RenderPlain()
         # clock for ticking
         self.clock = pygame.time.Clock()
         #The actual level surface
@@ -148,6 +149,14 @@ class Level(object):
             """Draw all sprites"""
             #Blit the screen with our black background
             self.level_surface.blit(self.background, (0, 0))    
+            
+            #Draw shadows for airborne actors
+            self.shadow_group.empty()
+            for group in self.sprite_group,self.enemy_sprite_group:
+                for actor in group:
+                    if actor.isAirborne():
+                        self.shadow_group.add(actor.getShadow())
+            self.shadow_group.draw(self.level_surface)
              
             #draw sprites
             self.sprite_group.draw(self.level_surface)

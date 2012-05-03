@@ -94,6 +94,26 @@ class HealthBar(pygame.sprite.Sprite):
         """
         self.cur_value = new_value
         self.p_updateImage()
+        
+class Shadow(pygame.sprite.Sprite):
+    """
+    Represents a shadow - a black transparent oval
+    """
+    
+    def __init__(self,area_rect):
+        """
+        Create a oval shadow filling in the area_rect
+        """
+        pygame.sprite.Sprite.__init__(self) 
+        
+        self.rect = area_rect
+        self.image = pygame.Surface((area_rect.width,area_rect.height))
+        
+        #shadow
+        pygame.draw.ellipse(self.image,Color(25,25,25),Rect(0,0,area_rect.width,area_rect.height))
+        self.image.set_colorkey((0,0,0))
+        self.image.set_alpha(100)
+        
             
 class Mover(pygame.sprite.Sprite):
     """Class for a sprite that moves and animates
@@ -219,6 +239,19 @@ class Fighter(Mover):
         self.fly_back_ticks = 0
         #Track how long fighter has lied on the ground after being knocked down
         self.fallen_ticks = 0
+        #Track the position on the ground when airborne
+        self.groundTop = self.rect.top
+        
+    def getShadow(self):
+        """
+        Return a sprite representing the fighter's shadow for this tick
+        (becomes invalid next tick)
+        """
+        if self.isAirborne():
+            return Shadow(Rect(self.rect.left,self.groundTop + self.rect.height/2 + self.rect.height/4,self.rect.width,self.rect.height/2))
+        else:
+            return Shadow(Rect(self.rect.left,self.rect.top,self.rect.width,self.rect.height))
+        
         
     def getHealthBar(self,rect_position):
         """
@@ -336,7 +369,8 @@ class Fighter(Mover):
                     if self.consecutive_hits == 4:
                         self.curState = Fighter.FLYING_BACK
                         self.fly_back_ticks = 0            
-                        self.current_animation = self.fallen_animation 
+                        self.current_animation = self.fallen_animation
+                        self.groundTop = self.rect.top 
                         return     
                 else:
                     self.consecutive_hits = 0
