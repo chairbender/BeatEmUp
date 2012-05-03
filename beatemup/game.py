@@ -175,9 +175,6 @@ class Level(object):
         #Make hero start in the center of the screen
         self.hero.setPosition((self.width/2,self.height/2))
         
-        self.enemy = Enemy(self.width/2 + 20,self.height/2 + 20)
-        self.enemy_sprite_group.add(self.enemy)
-        
     @staticmethod
     def loadLevelFromFile(self,screen,level_file_name):
         """

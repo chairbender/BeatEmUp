@@ -201,7 +201,11 @@ class Fighter(Mover):
         
         self.name = name
         
-        self.max_health = max_health
+        self.max_health = max_health        
+                
+        #For tracking consecutive hits (getting knocked back)
+        self.consecutive_hits = 0
+        self.started_punch = False
         
     def getHealthBar(self,rect_position):
         """
@@ -232,9 +236,7 @@ class Fighter(Mover):
         method, or override this
         """
         self.start_hit = True
-        #Only do damage if just starting to get hit
-        if  not self.isGettingHit():
-            self.takeHit(enemy_fighter)
+        self.takeHit(enemy_fighter)
     
     def getMaxHealth(self):
         """
@@ -258,6 +260,12 @@ class Fighter(Mover):
     def isPunching(self):
         return self.curState == Fighter.PUNCHING
     
+    def startedPunching(self):
+        """
+        Return whether the puncher has just initiated a punch
+        """
+        return self.started_punch
+    
     def isGettingHit(self):
         return self.curState == Fighter.GETTING_HIT
         
@@ -268,9 +276,12 @@ class Fighter(Mover):
         and getting hit based on those boolean parameters
         """
                
+        #Clear the started_punch flag if we are past the first tick of the punch
+        if self.started_punch and self.curState == Fighter.PUNCHING:
+            self.started_punch = False
 
-        #If we started to get hit, start hit animation
-        if bool_start_hit and self.curState != Fighter.GETTING_HIT:
+        #If we started to get hit, start hit animation. Can enter this at any time
+        if bool_start_hit:
             self.current_animation = self.hit_animation
             self.curState = Fighter.GETTING_HIT
             self.anim_timer = 0
@@ -278,6 +289,7 @@ class Fighter(Mover):
         if bool_start_punch and self.curState != Fighter.PUNCHING and self.curState != Fighter.GETTING_HIT:
             self.current_animation = self.punch_animation
             self.curState = Fighter.PUNCHING
+            self.started_punch = True
             self.anim_timer = 0
         #Check if we have finished animations if we are in a one time animation
         if  (self.curState == Fighter.PUNCHING or self.curState == Fighter.GETTING_HIT) and \
@@ -324,8 +336,9 @@ class Fighter(Mover):
         Use the fighters punchRect and hitboxes to check if puncher
         hits target (for use with spritecollide)
         """
+        #Only return true if the punch JUST started
 
-        return fighter_puncher.isPunching() and fighter_puncher.getPunchRect().colliderect(fighter_target.getHitBox())
+        return fighter_puncher.startedPunching() and fighter_puncher.getPunchRect().colliderect(fighter_target.getHitBox())
         
 class Enemy(Fighter):
     """Enemy that moves sporadically towards
