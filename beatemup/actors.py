@@ -209,7 +209,7 @@ class Fighter(Mover):
     RECOVERY_TIME = 100
     
     #States
-    IDLE_OR_MOVING,PUNCHING,GETTING_HIT,FLYING_BACK,FALLEN = range(5)
+    IDLE_OR_MOVING,PUNCHING,GETTING_HIT,FLYING_BACK,FALLEN,DEAD = range(6)
     
     def __init__(self,walk_animation,idle_animation,hit_animation,punch_animation,
                  fallen_animation,name="Fighter",max_health=100):
@@ -354,7 +354,22 @@ class Fighter(Mover):
             #Stay lying down and wait for timer to expire
             self.fallen_ticks += 1
             if self.fallen_ticks == Fighter.RECOVERY_TIME:
-                self.curState = Fighter.IDLE_OR_MOVING 
+                #Check if dead
+                if self.health <= 0:
+                    self.curState = Fighter.DEAD
+                else:
+                    self.curState = Fighter.IDLE_OR_MOVING 
+        elif self.curState == Fighter.DEAD:
+            #Do nothing
+            return
+        elif self.health <= 0:
+            #Start getting knocked back if not already
+            if self.curState != Fighter.FLYING_BACK:
+                self.curState = Fighter.FLYING_BACK
+                self.fly_back_ticks = 0            
+                self.current_animation = self.fallen_animation
+                self.groundTop = self.rect.top 
+                return               
         else:       
             #Clear the started_punch flag if we are past the first tick of the punch
             if self.started_punch and self.curState == Fighter.PUNCHING:
