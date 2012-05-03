@@ -39,7 +39,7 @@ class BeatEmUpMain:
         self.screen = pygame.display.set_mode((self.width
                                                , self.height))
         
-        level = Level(self.screen,1024)
+        level = Level.loadLevelFromFile(self, self.screen, 'test.xml')
         level.play()
         
 #Code for starting the game

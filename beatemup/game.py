@@ -7,6 +7,7 @@ import os, sys
 import pygame
 from beatemup.actors import *
 from pygame.locals import *
+import xml.dom.minidom
 
 """
 As a programmer, I want to specify a saved level file and have the user play it,
@@ -19,7 +20,7 @@ class Level(object):
     the positions of enemies, and the ability to play it
     """
     
-    def __init__(self,screen,level_width):
+    def __init__(self,screen,background_image):
         """
         Initialize the level, using the passed screen as the surface to draw on.
         For a level that is level_width pixels long (but only screen size portion displayed
@@ -30,7 +31,8 @@ class Level(object):
         self.width = self.screen.get_rect().width
         self.height = self.screen.get_rect().height
         
-        self.level_width = level_width
+        self.level_width = background_image.get_rect().width
+        self.background = background_image
         
         #Our fields
         self.hero = None
@@ -41,7 +43,13 @@ class Level(object):
         # clock for ticking
         self.clock = pygame.time.Clock()
         #The actual level surface
-        self.level_surface = pygame.Surface((level_width,self.height))
+        self.level_surface = pygame.Surface((self.level_width,self.height))
+        
+    def addActor(self,actor):
+        """
+        adds the passed actor to the level.
+        """
+        self.enemy_sprite_group.add(actor)
         
     def play(self):
         """
@@ -157,11 +165,6 @@ class Level(object):
         Initialize all the stuff before going into the main loop
         """
         self.p_loadSprites()
-
-        """Create the background"""
-        self.background = pygame.Surface((self.level_width,self.height))
-        self.background = self.background.convert()
-        self.background.fill((255,255,255))
         
 
     def p_loadSprites(self):
@@ -174,3 +177,42 @@ class Level(object):
         
         self.enemy = Enemy(self.width/2 + 20,self.height/2 + 20)
         self.enemy_sprite_group.add(self.enemy)
+        
+    @staticmethod
+    def loadLevelFromFile(self,screen,level_file_name):
+        """
+        Load level saved in the .lev XML format and return it
+        The format is described in level_format.txt        
+        level_file_name should be the name of the .xml file in the levels folder
+        """
+        
+        
+        fullname = os.path.join('..\\','levels')
+        fullname = os.path.join(fullname, level_file_name)
+        level_file = xml.dom.minidom.parse(fullname)
+        #Get the background image
+        for level in level_file.getElementsByTagName('Level'):
+            level_background = level.attributes["background"].value
+        #Load the background image
+        fullname = os.path.join('..\\','backgrounds')
+        fullname = os.path.join(fullname, level_background)
+        try:
+            image = pygame.image.load(fullname)
+        except pygame.error, message:
+            print 'Cannot load image:', fullname
+            raise SystemExit, message
+        image = image.convert()
+        
+        #Can now create the level object
+        result_level = Level(screen,image)
+        
+        #Now add enemies
+        for enemy in level_file.getElementsByTagName('Enemy'):
+            x = int(enemy.attributes['x'].value)
+            y = int(enemy.attributes['y'].value)
+            new_enemy = Enemy(x,y)
+            result_level.addActor(new_enemy)
+        
+        return result_level
+        
+        

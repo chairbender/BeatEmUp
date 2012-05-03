@@ -1,0 +1,13 @@
+XML Format for levels
+
+<Level
+	background="name_of_background_image_in_backgrounds_folder"
+		--background must be 480 high and at least 640 px wide
+>
+	<EnemyType -- the name of the class of the enemy
+		x="xPosition"
+		y="yPosition"
+	>
+
+
+</Level>

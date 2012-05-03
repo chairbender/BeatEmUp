@@ -1,0 +1,10 @@
+<?xml version="1.0" ?>
+<Level
+	background="test.png"
+>
+	<Enemy
+		x="480"
+		y="300"
+	/>
+
+</Level>
