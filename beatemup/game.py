@@ -91,11 +91,13 @@ class Level(object):
                 enemy.doMove(self.hero)
                                             
             """Check for collisions"""
-            #keep all sprites into the movement area (the bottom half of the screen)
+            #keep all sprites into the movement area (the bottom half of the screen),
+            #unless they are airborne
             for group in self.sprite_group, self.enemy_sprite_group:
                 for sprite in group:
-                    sprite.rect.top = max(self.height/2,sprite.rect.top)
-                    sprite.rect.bottom = min(self.height,sprite.rect.bottom)
+                    if not sprite.isAirborne():
+                        sprite.rect.top = max(self.height/2,sprite.rect.top)
+                        sprite.rect.bottom = min(self.height,sprite.rect.bottom)
             
             #If the hero goes left or right outside the screen, scroll left or right
             #if not out of level bounds
