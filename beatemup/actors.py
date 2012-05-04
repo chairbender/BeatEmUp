@@ -145,7 +145,7 @@ class Mover(pygame.sprite.Sprite):
         
         #Initialize our rect and image
         self.image, self.rect = (self.idle_animation[0],\
-                                 self.idle_animation[0].get_rect())
+                                 self.idle_animation[0].get_bounding_rect())
         
         #How many ticks have elapsed since the restart of the current animation     
         self.anim_timer = 0
@@ -468,10 +468,10 @@ class Fighter(Mover):
         of where the punch is
         """
         #Default to a little ahead of wherever they are facing, with a little band
-        rightrect = Rect(self.rect.right - 10,
+        rightrect = Rect(self.rect.right,
                                     self.rect.centery,
-                                    self.rect.width/2,
-                                    10)
+                                    1,
+                                    1)
         #Flip across centerx if facing left
         if self.facing_right:
             return rightrect

@@ -158,7 +158,7 @@ class Level(object):
                         self.shadow_group.add(actor.getShadow())
             self.shadow_group.draw(self.level_surface)
              
-            #draw sprites
+            #draw sprites, order by rect.bottom
             self.sprite_group.draw(self.level_surface)
             self.enemy_sprite_group.draw(self.level_surface)
             
