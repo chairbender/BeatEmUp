@@ -261,10 +261,13 @@ class Fighter(Mover):
         Return a sprite representing the fighter's shadow for this tick
         (becomes invalid next tick)
         """
+        #new width and left needed, because they are lying down and usually wider
+        #when airborne
+        new_rect = self.image.get_rect()
         if self.isAirborne():
-            return Shadow(Rect(self.rect.left,self.groundTop + self.rect.height/2 + self.rect.height/4,self.rect.width,self.rect.height/2))
+            return Shadow(Rect(self.rect.left,self.groundTop + new_rect.height/2 + new_rect.height/4,new_rect.width,new_rect.height/2).inflate(-50,-50))
         else:
-            return Shadow(Rect(self.rect.left,self.rect.top,self.rect.width,self.rect.height))
+            return Shadow(Rect(self.image.rect.left,self.rect.top,self.rect.width,self.rect.height))
         
         
     def getHealthBar(self,rect_position):
