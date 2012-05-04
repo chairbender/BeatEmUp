@@ -4,7 +4,10 @@ import os, sys
 import pygame
 from pygame.locals import *
 
-def load_image(name, colorkey=None):
+def load_image(name, colorkey=None, char_scale=False):
+    """
+    Chr_scale determines if should be scaled up to bigger than 64x64
+    """
     fullname = os.path.join('..\\','sprites')
     fullname = os.path.join(fullname, name)
     try:
@@ -13,13 +16,15 @@ def load_image(name, colorkey=None):
         print 'Cannot load image:', fullname
         raise SystemExit, message
     image = image.convert()
+    if char_scale:
+        image = pygame.transform.scale2x(image)
     if colorkey is not None:
         if colorkey is -1:
             colorkey = image.get_at((0,0))
         image.set_colorkey(colorkey, RLEACCEL)
     return image, image.get_rect()
 
-def getAnimation(image_prefix):
+def getAnimation(image_prefix, char_scale=False):
     """Return a list of images in order
     representing the frames of the animation
     given by the passed prefix (image_prefix should
@@ -49,6 +54,8 @@ def getAnimation(image_prefix):
         try:
             image = pygame.image.load(fullname_prefix + suffix + '.png')
             image = image.convert()
+            if char_scale:
+                image = pygame.transform.scale2x(image)
             colorkey = image.get_at((0,0))
             image.set_colorkey(colorkey, RLEACCEL)
             result.append(image)

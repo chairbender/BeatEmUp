@@ -29,7 +29,7 @@ class Animation:
         self.animation_speed = speed
         
         #Will hold the sprite frames
-        self.sprite_frames = getAnimation(image_prefix)
+        self.sprite_frames = getAnimation(image_prefix,True)
     
     def __getitem__(self,index):
         return self.sprite_frames[index]
@@ -208,17 +208,22 @@ class Fighter(Mover):
     #How long to stay lying down when knocked down
     RECOVERY_TIME = 100
     
+    #How long a window after an attack finishes that
+    #attacking again continues the combo
+    COMBO_WINDOW = 30
+    
     #States
     IDLE_OR_MOVING,PUNCHING,GETTING_HIT,FLYING_BACK,FALLEN,DEAD = range(6)
     
-    def __init__(self,walk_animation,idle_animation,hit_animation,punch_animation,
-                 fallen_animation,name="Fighter",max_health=100):
+    def __init__(self,walk_animation,idle_animation,hit_animation,fallen_animation,combo_animations,
+                 name="Fighter",max_health=100):
         Mover.__init__(self,walk_animation,idle_animation)
         
         #Our animations
         self.hit_animation = hit_animation
-        self.punch_animation = punch_animation
         self.fallen_animation = fallen_animation
+        #An array that is looped through to do combos
+        self.combo_animations = combo_animations
         
         #Our saved state
         #Whether we are in the middle of a one time animation like getting hit or punching
@@ -229,11 +234,20 @@ class Fighter(Mover):
         
         self.name = name
         
-        self.max_health = max_health        
+        self.max_health = max_health    
+        
+        #if we got hit this tick, and if we got launched
+        self.start_hit = False
+        self.start_getting_launched = False    
                 
-        #For tracking consecutive hits (getting knocked back)
-        self.consecutive_hits = 0
+        #For tracking combos
+        self.consecutive_punches = 0
+        #counts time allowed between attacks in a combo - 
+        self.punch_combo_timer = Fighter.COMBO_WINDOW
         self.started_punch = False
+        self.is_launching = False #whether current punch is a launcher
+        #Whether hit has landed this step of the combo
+        self.hit_landed_for_combo = False
         #Amount of ticks elapsed since the fighter started flying back after getting
         #hit a bunch
         self.fly_back_ticks = 0
@@ -283,12 +297,22 @@ class Fighter(Mover):
         """
         Default behavior is to set the
         self.start_hit flag and take damage
-        if not already being hit. subclasses can
+        if not already being hit. also deal with getting launchedsubclasses can
         use the self.start_hit flag in their update
         method, or override this
         """
         self.start_hit = True
+        if enemy_fighter.isLaunching():
+            self.start_getting_launched = True
+        #Let enemy know hit landed this tick
+        enemy_fighter.notifyHitLanded()        
         self.takeHit(enemy_fighter)
+        
+    def notifyHitLanded(self):
+        """
+        Notify hit landed so combo can continue
+        """
+        self.hit_landed_for_combo = True
     
     def getMaxHealth(self):
         """
@@ -312,6 +336,13 @@ class Fighter(Mover):
     def isPunching(self):
         return self.curState == Fighter.PUNCHING
     
+    def isLaunching(self):
+        """
+        Return true if this fighter is punching and is
+        at the end of the combo
+        """
+        return self.is_launching
+    
     def startedPunching(self):
         """
         Return whether the puncher has just initiated a punch
@@ -321,7 +352,7 @@ class Fighter(Mover):
     def isGettingHit(self):
         return self.curState == Fighter.GETTING_HIT
         
-    def updateMovePunchHit(self,xMove,yMove,bool_start_punch,bool_start_hit):
+    def updateMovePunchHit(self,xMove,yMove,bool_start_punch):
         """
         updates state, animations and position
         move based on the passed speed, also process punching
@@ -342,7 +373,10 @@ class Fighter(Mover):
             yMove = initial_velocity + gravity*self.fly_back_ticks
             
             #actually move the fighter
-            self.rect.move_ip(xMove,yMove)
+            if self.facing_right:
+                self.rect.move_ip(-xMove,yMove)
+            else:
+                self.rect.move_ip(xMove,yMove) 
             
             #increment the fly back timer
             self.fly_back_ticks += 1
@@ -371,22 +405,24 @@ class Fighter(Mover):
                 self.groundTop = self.rect.top 
                 return               
         else:       
-            #Clear the started_punch flag if we are past the first tick of the punch
+            #Clear the started_punch flag and launcher flag if we are past the first tick of the punch
             if self.started_punch and self.curState == Fighter.PUNCHING:
                 self.started_punch = False
+                self.is_launching = False
+            
+            #Count up the combo timer
+            self.punch_combo_timer += 1
     
             #If we started to get hit, start hit animation. Can enter this at any time
-            if bool_start_hit:
-                #If we are being combod, increment the consecutive hit counter
-                if self.curState == Fighter.GETTING_HIT:
-                    self.consecutive_hits += 1
-                    #If we have reached the 4th consecutive hit, start getting knocked back
-                    if self.consecutive_hits == 4:
-                        self.curState = Fighter.FLYING_BACK
-                        self.fly_back_ticks = 0            
-                        self.current_animation = self.fallen_animation
-                        self.groundTop = self.rect.top 
-                        return     
+            if self.start_hit:
+                #If we are suposed to go flying, do so
+                if self.start_getting_launched:
+                    self.start_getting_launched = False
+                    self.curState = Fighter.FLYING_BACK
+                    self.fly_back_ticks = 0            
+                    self.current_animation = self.fallen_animation
+                    self.groundTop = self.rect.top 
+                    return     
                 else:
                     self.consecutive_hits = 0
                 self.current_animation = self.hit_animation
@@ -394,7 +430,21 @@ class Fighter(Mover):
                 self.anim_timer = 0
             #start punching if we just started and aren't already animating
             if bool_start_punch and self.curState != Fighter.PUNCHING and self.curState != Fighter.GETTING_HIT:
-                self.current_animation = self.punch_animation
+                #Check if the combo timer hasn't expired
+                if self.punch_combo_timer < Fighter.COMBO_WINDOW and self.hit_landed_for_combo and self.consecutive_punches < len(self.combo_animations)-1:
+                    #increment combo counter
+                    self.consecutive_punches += 1
+                    #if we are at the end of the combo, 
+                    #launch
+                    if self.consecutive_punches == len(self.combo_animations)-1:
+                        self.is_launching =True
+                    
+                else:
+                    #Otherwise, reset it
+                    self.consecutive_punches = 0
+                    self.hit_landed_for_combo = False
+                    self.is_launching = False
+                self.current_animation = self.combo_animations[self.consecutive_punches]
                 self.curState = Fighter.PUNCHING
                 self.started_punch = True
                 self.anim_timer = 0
@@ -403,6 +453,8 @@ class Fighter(Mover):
                 self.anim_timer == len(self.current_animation) * self.current_animation.animation_speed - 1:
                 #become idle
                 self.curState = Fighter.IDLE_OR_MOVING
+                #Start combo timer
+                self.punch_combo_timer = 0
                     
             #Move if we aren't doing something else (or do idle anim)
             if self.curState == Fighter.IDLE_OR_MOVING:
@@ -419,7 +471,7 @@ class Fighter(Mover):
         rightrect = Rect(self.rect.right - 10,
                                     self.rect.centery,
                                     self.rect.width/2,
-                                    20)
+                                    10)
         #Flip across centerx if facing left
         if self.facing_right:
             return rightrect
@@ -453,7 +505,7 @@ class Enemy(Fighter):
     
     MOVE_SPEED = 1
     #Probability of stopping and waiting for a few ticks
-    STOP_PROBABILITY = .025
+    STOP_PROBABILITY = .010
     #Rect for getting punched
     HIT_BOX_IN_LOCAL = None
     #How long to wait before punching when in position
@@ -472,18 +524,18 @@ class Enemy(Fighter):
     def __init__(self, xPos, yPos):
         #Initialize static vars if first time
         if Enemy.s_walk_animation == None:   
-            Enemy.s_walk_animation = Animation('enemy_walk_',8)
-            Enemy.s_hit_animation = Animation('enemy_hit_',20)
-            Enemy.s_idle_animation = Animation('enemy_idle_',8)  
-            Enemy.s_punch_animation = Animation('enemy_punch_',8) 
-            Enemy.s_fallen_animation = Animation('enemy_fallen_',8)
+            Enemy.s_walk_animation = Animation('roger_walk_',8)
+            Enemy.s_hit_animation = Animation('roger_hit_',20)
+            Enemy.s_idle_animation = Animation('roger_idle_',8)  
+            Enemy.s_punch_animation = Animation('roger_punch_',8) 
+            Enemy.s_fallen_animation = Animation('roger_fallen_',8)
               
             Enemy.HIT_BOX_IN_LOCAL = Rect(0,Enemy.s_idle_animation[0].get_rect().height/2,
                                          Enemy.s_idle_animation[0].get_rect().width,20)
             
             
-        Fighter.__init__(self,Enemy.s_walk_animation,Enemy.s_idle_animation,Enemy.s_hit_animation,Enemy.s_punch_animation,
-                         Enemy.s_fallen_animation,
+        Fighter.__init__(self,Enemy.s_walk_animation,Enemy.s_idle_animation,Enemy.s_hit_animation,Enemy.s_fallen_animation,
+                         [Enemy.s_punch_animation,Enemy.s_punch_animation],
                          "Enemy",50)   
         
         #Set position
@@ -557,7 +609,7 @@ class Enemy(Fighter):
                 self.wait_count = random.randint(20,60)
     
     def update(self):
-        self.updateMovePunchHit(self.xspeed, self.yspeed, self.bool_start_punch, self.start_hit)
+        self.updateMovePunchHit(self.xspeed, self.yspeed, self.bool_start_punch)
         #clear flags
         self.start_hit = self.bool_start_punch = False
         
@@ -572,7 +624,9 @@ class Hero(Fighter):
     MOVE_SPEED = 2
     #The walking animation, tuple of tuples of surfaces and rects
     s_walk_animation = None
-    s_punch_animation = None 
+    s_punch_animation = None
+    s_punch2_animation = None
+    s_punch3_animation = None 
     s_idle_animation = None
     s_fallen_animation = None 
     
@@ -584,11 +638,13 @@ class Hero(Fighter):
     def __init__(self):
         #Initialize static vars if first time
         if Hero.s_walk_animation == None:   
-            Hero.s_walk_animation = Animation('hero_walk_',8)
-            Hero.s_punch_animation = Animation('hero_punch_',8)
-            Hero.s_idle_animation = Animation('hero_idle_',8)
-            Hero.s_hit_animation = Animation('hero_hit_',8)
-            Hero.s_fallen_animation = Animation('hero_fallen_',8)         
+            Hero.s_walk_animation = Animation('doug_walk_',8)
+            Hero.s_punch_animation = Animation('doug_punch_',8)
+            Hero.s_punch2_animation = Animation('doug_punch2_',8)
+            Hero.s_punch3_animation = Animation('doug_punch3_',8)
+            Hero.s_idle_animation = Animation('doug_idle_',10)
+            Hero.s_hit_animation = Animation('doug_hit_',15)
+            Hero.s_fallen_animation = Animation('doug_fallen_',8)         
             
             Hero.PUNCH_HIT_BOX_IN_LOCAL = Rect(Hero.s_idle_animation[0].get_rect().width/2,
                                     Hero.s_idle_animation[0].get_rect().height/2,
@@ -598,8 +654,8 @@ class Hero(Fighter):
         #End initializing static vars
         
         #Call constructor of parent
-        Fighter.__init__(self,Hero.s_walk_animation,Hero.s_idle_animation,Hero.s_hit_animation,Hero.s_punch_animation,
-                         Hero.s_fallen_animation,
+        Fighter.__init__(self,Hero.s_walk_animation,Hero.s_idle_animation,Hero.s_hit_animation,Hero.s_fallen_animation,
+                         [Hero.s_punch_animation,Hero.s_punch2_animation,Hero.s_punch_animation,Hero.s_punch3_animation],
                          "Hero",100)   
         
         #Flags for starting animations
@@ -608,7 +664,7 @@ class Hero(Fighter):
     def update(self):
         """Update the sprite based on 
         current sprite state - should be called after sending move commands"""
-        self.updateMovePunchHit(self.xMove, self.yMove, self.start_punch, self.start_hit)
+        self.updateMovePunchHit(self.xMove, self.yMove, self.start_punch)
         
         #Reset the animation starting flags  
         self.start_punch = self.start_hit = False
