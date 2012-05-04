@@ -37,6 +37,9 @@ class Level(object):
         #Our fields
         self.hero = None
         #Holds all of our sprites
+        #actor group will actually be used to draw actors, 
+        #sprite and enemy_sprite groups are for containing (might want to just use arrays)
+        self.actor_group = pygame.sprite.OrderedUpdates()
         self.sprite_group = pygame.sprite.RenderPlain()
         self.enemy_sprite_group = pygame.sprite.RenderPlain()
         self.health_bar_group = pygame.sprite.RenderPlain()
@@ -159,8 +162,18 @@ class Level(object):
             self.shadow_group.draw(self.level_surface)
              
             #draw sprites, order by rect.bottom
-            self.sprite_group.draw(self.level_surface)
-            self.enemy_sprite_group.draw(self.level_surface)
+            #first get all sprites
+            sprite_list = []
+            for group in self.enemy_sprite_group,self.sprite_group:
+                for sprite in group:                    
+                    sprite_list.append(sprite)
+            #sort
+            sprite_list.sort(key=lambda sprite: sprite.rect.bottom)
+            #add to the order updates group after clearing it
+            self.actor_group.empty()
+            self.actor_group.add(sprite_list)
+            #draw it
+            self.actor_group.draw(self.level_surface)
             
             viewport = self.level_surface.subsurface(Rect(level_scroll,0,self.width,self.height))
             #Draw UI
